@@ -893,7 +893,7 @@ final class DefaultSearchContext extends SearchContext {
         // This is actually beneficial for search queries to start search on latest segments first for time series workload.
         // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
         // reader order here.
-        if (this.indexShard.isTimeSeriesIndex()) {
+        /*if (this.indexShard.isTimeSeriesIndex()) {
             // Only reverse order for asc order sort queries
             if (request != null
                 && request.source() != null
@@ -902,7 +902,7 @@ final class DefaultSearchContext extends SearchContext {
                 && request.source().sorts().get(0).order() == SortOrder.ASC) {
                 return true;
             }
-        }
+        }*/
         return false;
     }
 }
