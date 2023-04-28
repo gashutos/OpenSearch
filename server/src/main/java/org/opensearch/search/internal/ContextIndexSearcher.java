@@ -32,9 +32,11 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
@@ -52,6 +54,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -104,6 +107,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private final boolean reverseLeafReaderContexts;
 
+    private final SearchContext searchContext;
+
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -120,7 +125,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             new MutableQueryTimeout(),
             wrapWithExitableDirectoryReader,
             executor,
-            false
+            false,
+            null
         );
     }
 
@@ -131,7 +137,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        boolean reverseLeafReaderContexts
+        boolean reverseLeafReaderContexts,
+        SearchContext searchContext
     ) throws IOException {
         this(
             reader,
@@ -141,7 +148,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             new MutableQueryTimeout(),
             wrapWithExitableDirectoryReader,
             executor,
-            reverseLeafReaderContexts
+            reverseLeafReaderContexts,
+            searchContext
         );
     }
 
@@ -153,7 +161,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        boolean reverseLeafReaderContexts
+        boolean reverseLeafReaderContexts,
+        SearchContext searchContext
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
@@ -161,6 +170,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.reverseLeafReaderContexts = reverseLeafReaderContexts;
+        this.searchContext = searchContext;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -303,6 +313,34 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+        if(this.searchContext.searchAfter() != null) {
+            if(this.searchContext.sort() != null &&
+                this.searchContext.sort().sort.getSort() != null &&
+                this.searchContext.sort().sort.getSort().length > 0) {
+                SortField sortField = this.searchContext.sort().sort.getSort()[0];
+                PointValues points = ctx.reader().getPointValues(sortField.getField());
+                long maxValue = Long.MIN_VALUE;
+                long minValue = Long.MAX_VALUE;
+                if (points != null) {
+                    // could be a multipoint (probably not) but get the maximum time value anyway
+                    byte[] maxSortValue = points.getMaxPackedValue();
+                    byte[] minSortValue = points.getMinPackedValue();
+                    // decode the first dimension because this should not be a multi dimension field
+                    // it's a bug in the date field if it is
+                    maxValue = LongPoint.decodeDimension(maxSortValue, 0);
+                    minValue = LongPoint.decodeDimension(minSortValue, 0);
+                }
+                if(sortField.getReverse() == true) {
+                    if(Long.compare(minValue, (Long)(this.searchContext.searchAfter().fields[0])) > 0) {
+                        return;
+                    }
+                } else {
+                    if(Long.compare(maxValue, (Long)(this.searchContext.searchAfter().fields[0])) < 0) {
+                        return;
+                    }
+                }
+            }
+        }
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
