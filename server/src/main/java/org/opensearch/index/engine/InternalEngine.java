@@ -2323,7 +2323,7 @@ public class InternalEngine extends Engine {
             iwc.setIndexSort(config().getIndexSort());
         }
         if (config().getLeafSorter() != null) {
-            //iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
+            iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
         }
         return iwc;
     }
