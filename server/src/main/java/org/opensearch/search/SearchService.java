@@ -34,9 +34,12 @@ package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -1538,6 +1541,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
 
                 canMatch = canMatch || canMatchSearchAfter(searchContext, minMax);
+                canMatch = canMatch || canMatchRangeQuery(searchContext);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
@@ -1556,6 +1560,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return compare(searchContext.searchAfter().fields[0], minMax.getMax(), primarySortField.getType()) <= 0;
                 }
             }
+        }
+        return true;
+    }
+
+    private static boolean canMatchRangeQuery(SearchContext searchContext) throws IOException {
+        if(searchContext.query() instanceof PointRangeQuery) {
+            PointRangeQuery query = (PointRangeQuery) searchContext.query();
+            final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
+            byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+            byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+            for (int dim = 0; dim < query.getNumDims(); dim++) {
+                int offset = dim * query.getBytesPerDim();
+                if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
+                    comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
+                    // Doc's value is too low, in this dimension
+                    return false;
+                }
+                if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
+                    comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
+                    // Doc's value is too high, in this dimension
+                    return false;
+                }
+            }
+            return true;
         }
         return true;
     }

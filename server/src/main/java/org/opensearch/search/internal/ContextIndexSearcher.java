@@ -48,6 +48,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -60,6 +61,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -341,6 +343,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+
+        if(searchContext.query() instanceof PointRangeQuery) {
+            PointRangeQuery query = (PointRangeQuery) searchContext.query();
+            final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
+            byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+            byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+            for (int dim = 0; dim < query.getNumDims(); dim++) {
+                int offset = dim * query.getBytesPerDim();
+                if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
+                    comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
+                    // Doc's value is too low, in this dimension
+                    return;
+                }
+                if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
+                    comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
+                    // Doc's value is too high, in this dimension
+                    return;
+                }
+            }
+        }
+
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
