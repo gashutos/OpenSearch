@@ -35,6 +35,7 @@ package org.opensearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -1498,7 +1499,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
+        final SearchContext searchContext = createSearchContext(request, NO_TIMEOUT);
+        final ReaderContext readerContext = searchContext.readerContext();
         final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : () -> {};
         try (Releasable ignored = markAsUsed) {
             final IndexService indexService;
@@ -1526,7 +1528,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
+                boolean canMatch;
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
@@ -1534,8 +1536,42 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
+
+                canMatch = canMatch || canMatchSearchAfter(searchContext, minMax);
+
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
+        }
+    }
+
+    private static boolean canMatchSearchAfter(SearchContext searchContext, MinAndMax<?> minMax) {
+        if(searchContext.searchAfter() != null) {
+            if(searchContext.sort() != null &&
+            searchContext.sort().sort.getSort() != null &&
+            searchContext.sort().sort.getSort().length > 0) {
+                SortField primarySortField = searchContext.sort().sort.getSort()[0];
+                if(primarySortField.getReverse()) {
+                    return compare(searchContext.searchAfter().fields[0], minMax.getMin(), primarySortField.getType()) >= 0;
+                } else {
+                    return compare(searchContext.searchAfter().fields[0], minMax.getMax(), primarySortField.getType()) <= 0;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static int compare(Object one, Object two, SortField.Type type) {
+        switch(type) {
+            case INT:
+                return Integer.compare((Integer) one, (Integer) two);
+            case LONG:
+                return Long.compare((Long) one, (Long) two);
+            case DOUBLE:
+                return Double.compare((Double) one, (Double) two);
+            case FLOAT:
+                return Float.compare((Float) one, (Float) two);
+            default:
+                throw new UnsupportedOperationException("canMatchSearchAfter is only supported for numeric sort types");
         }
     }
 
