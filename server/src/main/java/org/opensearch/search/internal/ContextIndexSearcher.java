@@ -315,7 +315,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        if(this.searchContext.searchAfter() != null) {
+        /*if(this.searchContext.searchAfter() != null) {
             if(this.searchContext.sort() != null &&
                 this.searchContext.sort().sort.getSort() != null &&
                 this.searchContext.sort().sort.getSort().length > 0) {
@@ -362,7 +362,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     return;
                 }
             }
-        }
+        }*/
 
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
