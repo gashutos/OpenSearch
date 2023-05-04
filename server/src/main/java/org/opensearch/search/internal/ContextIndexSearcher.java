@@ -46,6 +46,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.PointRangeQuery;
@@ -315,7 +316,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        /*if(this.searchContext.searchAfter() != null) {
+        if(this.searchContext.searchAfter() != null) {
             if(this.searchContext.sort() != null &&
                 this.searchContext.sort().sort.getSort() != null &&
                 this.searchContext.sort().sort.getSort().length > 0) {
@@ -344,25 +345,28 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if(searchContext.query() instanceof PointRangeQuery) {
-            PointRangeQuery query = (PointRangeQuery) searchContext.query();
-            final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
-            byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
-            byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
-            for (int dim = 0; dim < query.getNumDims(); dim++) {
-                int offset = dim * query.getBytesPerDim();
-                if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
-                    comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
-                    // Doc's value is too low, in this dimension
-                    return;
-                }
-                if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
-                    comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
-                    // Doc's value is too high, in this dimension
-                    return;
+        if(searchContext.query() instanceof IndexOrDocValuesQuery) {
+            IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) searchContext.query();
+            if(indexOrDocValuesQuery.getIndexQuery() instanceof PointRangeQuery) {
+                PointRangeQuery query = (PointRangeQuery) indexOrDocValuesQuery.getIndexQuery();
+                final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
+                byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+                for (int dim = 0; dim < query.getNumDims(); dim++) {
+                    int offset = dim * query.getBytesPerDim();
+                    if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
+                        comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
+                        // Doc's value is too low, in this dimension
+                        return;
+                    }
+                    if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
+                        comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
+                        // Doc's value is too high, in this dimension
+                        return;
+                    }
                 }
             }
-        }*/
+        }
 
         cancellable.checkCancelled();
         weight = wrapWeight(weight);

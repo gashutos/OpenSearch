@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
@@ -1540,8 +1541,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatch = aliasFilterCanMatch;
                 }
 
-                //canMatch = canMatch || canMatchSearchAfter(searchContext, minMax);
-                //canMatch = canMatch || canMatchRangeQuery(searchContext);
+                canMatch = canMatch || canMatchSearchAfter(searchContext, minMax);
+                canMatch = canMatch || canMatchRangeQuery(searchContext);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
@@ -1565,25 +1566,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static boolean canMatchRangeQuery(SearchContext searchContext) throws IOException {
-        if(searchContext.query() instanceof PointRangeQuery) {
-            PointRangeQuery query = (PointRangeQuery) searchContext.query();
-            final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
-            byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
-            byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
-            for (int dim = 0; dim < query.getNumDims(); dim++) {
-                int offset = dim * query.getBytesPerDim();
-                if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
-                    comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
-                    // Doc's value is too low, in this dimension
-                    return false;
-                }
-                if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
-                    comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
-                    // Doc's value is too high, in this dimension
-                    return false;
+        if(searchContext.query() instanceof IndexOrDocValuesQuery) {
+            IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) searchContext.query();
+            if(indexOrDocValuesQuery.getIndexQuery() instanceof PointRangeQuery) {
+                PointRangeQuery query = (PointRangeQuery) indexOrDocValuesQuery.getIndexQuery();
+                final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
+                byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+                for (int dim = 0; dim < query.getNumDims(); dim++) {
+                    int offset = dim * query.getBytesPerDim();
+                    if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
+                        comparator.compare(maxPackedValue, offset, query.getLowerPoint(), offset) < 0) {
+                        // Doc's value is too low, in this dimension
+                        return false;
+                    }
+                    if (comparator.compare(minPackedValue, offset, query.getUpperPoint(), offset) > 0 &&
+                        comparator.compare(maxPackedValue, offset, query.getUpperPoint(), offset) > 0) {
+                        // Doc's value is too high, in this dimension
+                        return false;
+                    }
                 }
             }
-            return true;
         }
         return true;
     }
