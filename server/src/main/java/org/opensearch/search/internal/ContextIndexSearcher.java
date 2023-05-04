@@ -350,8 +350,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if(indexOrDocValuesQuery.getIndexQuery() instanceof PointRangeQuery) {
                 PointRangeQuery query = (PointRangeQuery) indexOrDocValuesQuery.getIndexQuery();
                 final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(query.getBytesPerDim());
-                byte[] minPackedValue = PointValues.getMinPackedValue(searchContext.searcher().getIndexReader(), query.getField());
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(searchContext.searcher().getIndexReader(), query.getField());
+                byte[] minPackedValue = PointValues.getMinPackedValue(ctx.reader(), query.getField());
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(ctx.reader(), query.getField());
                 for (int dim = 0; dim < query.getNumDims(); dim++) {
                     int offset = dim * query.getBytesPerDim();
                     if (comparator.compare(minPackedValue, offset, query.getLowerPoint(), offset) < 0 &&
