@@ -2431,6 +2431,23 @@ public class InternalEngine extends Engine {
         if (Assertions.ENABLED) {
             return new AssertingIndexWriter(directory, iwc);
         } else {
+            SegmentInfos infos = getLatestSegmentInfos();
+            if(infos != null && infos.size() > 0) {
+                Sort indexSortFromSegment = infos.info(0).info.getIndexSort();
+                if(indexSortFromSegment != null && indexSortFromSegment.getSort() != null) {
+                    SortField[] sortFieldsEngineConfig = iwc.getIndexSort().getSort();
+                    SortField[] sortFieldsSegmentInfo = indexSortFromSegment.getSort();
+                    for(int i = 0; i < sortFieldsSegmentInfo.length; i++) {
+                        if(i < sortFieldsEngineConfig.length && sortFieldsEngineConfig[i].getType() != sortFieldsSegmentInfo[i].getType()) {
+                            if(sortFieldsSegmentInfo[i].getType() == SortField.Type.LONG) {
+                                if(sortFieldsEngineConfig[i].getType() == SortField.Type.INT) {
+                                    sortFieldsEngineConfig[i] = sortFieldsSegmentInfo[i];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             return new IndexWriter(directory, iwc);
         }
     }
@@ -2489,23 +2506,6 @@ public class InternalEngine extends Engine {
         iwc.setCodec(engineConfig.getCodec());
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
         if (config().getIndexSort() != null) {
-            SegmentInfos infos = getLatestSegmentInfos();
-            if(infos != null && infos.size() > 0) {
-                Sort indexSortFromSegment = infos.info(0).info.getIndexSort();
-                if(indexSortFromSegment != null && indexSortFromSegment.getSort() != null) {
-                    SortField[] sortFieldsEngineConfig = config().getIndexSort().getSort();
-                    SortField[] sortFieldsSegmentInfo = indexSortFromSegment.getSort();
-                    for(int i = 0; i < sortFieldsSegmentInfo.length; i++) {
-                        if(i < sortFieldsEngineConfig.length && sortFieldsEngineConfig[i].getType() != sortFieldsSegmentInfo[i].getType()) {
-                            if(sortFieldsSegmentInfo[i].getType() == SortField.Type.LONG) {
-                                if(sortFieldsEngineConfig[i].getType() == SortField.Type.INT) {
-                                    sortFieldsEngineConfig[i] = sortFieldsSegmentInfo[i];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             iwc.setIndexSort(config().getIndexSort());
         }
         return iwc;
