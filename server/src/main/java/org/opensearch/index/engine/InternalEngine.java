@@ -66,6 +66,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
@@ -2487,6 +2489,23 @@ public class InternalEngine extends Engine {
         iwc.setCodec(engineConfig.getCodec());
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
         if (config().getIndexSort() != null) {
+            SegmentInfos infos = getLatestSegmentInfos();
+            if(infos != null && infos.size() > 0) {
+                Sort indexSortFromSegment = infos.info(0).info.getIndexSort();
+                if(indexSortFromSegment != null && indexSortFromSegment.getSort() != null) {
+                    SortField[] sortFieldsEngineConfig = config().getIndexSort().getSort();
+                    SortField[] sortFieldsSegmentInfo = indexSortFromSegment.getSort();
+                    for(int i = 0; i < sortFieldsSegmentInfo.length; i++) {
+                        if(i < sortFieldsEngineConfig.length && sortFieldsEngineConfig[i].getType() != sortFieldsSegmentInfo[i].getType()) {
+                            if(sortFieldsSegmentInfo[i].getType() == SortField.Type.LONG) {
+                                if(sortFieldsEngineConfig[i].getType() == SortField.Type.INT) {
+                                    sortFieldsEngineConfig[i] = sortFieldsSegmentInfo[i];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             iwc.setIndexSort(config().getIndexSort());
         }
         return iwc;
