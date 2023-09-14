@@ -153,15 +153,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     @Override
     public final SortField indexSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         if(getNumericType().sortFieldType == SortField.Type.INT) {
-            XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
+            XFieldComparatorSource source = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
             SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
                 ? SortedNumericSelector.Type.MAX
                 : SortedNumericSelector.Type.MIN;
             SortField sortField = new SortedNumericSortField(getFieldName(), SortField.Type.LONG, reverse, selectorType);
             sortField.setMissingValue(source.missingObject(missingValue, reverse));
             return sortField;
-        } else {
-
         }
         return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
