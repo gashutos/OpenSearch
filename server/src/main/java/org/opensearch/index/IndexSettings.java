@@ -619,6 +619,8 @@ public final class IndexSettings {
 
     private volatile long retentionLeaseMillis;
 
+    private final boolean widenIndexSortType;
+
     /**
      * The maximum age of a retention lease before it is considered expired.
      *
@@ -821,6 +823,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrBefore(LegacyESVersion.V_2_6_1);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -1564,5 +1567,9 @@ public final class IndexSettings {
 
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
+    }
+
+    public boolean shouldWidenIndexSortType() {
+        return this.widenIndexSortType;
     }
 }

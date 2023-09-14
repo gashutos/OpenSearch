@@ -95,6 +95,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
     /**
+     * Returns the {@link SortField} to use for index sorting.
+     */
+    default SortField indexSortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(missingValue, sortMode, nested, reverse);
+    }
+
+    /**
      * Build a sort implementation specialized for aggregations.
      */
     BucketedSort newBucketedSort(
