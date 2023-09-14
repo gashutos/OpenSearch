@@ -149,7 +149,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse, false);
     }
 
     @Override
