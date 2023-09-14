@@ -430,7 +430,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             System.out.println("CHETAN LOGS : " + resolvedType);
-            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse, false);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);

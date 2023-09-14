@@ -81,13 +81,10 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         private final ValuesSourceType valuesSourceType;
         private SortField.Type sortFieldType;
 
-        private boolean usePointBasedOptimization;
-
         NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
-            this.usePointBasedOptimization = true;
         }
 
         public final boolean isFloatingPoint() {
@@ -96,11 +93,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
-        }
-
-        public void setSortFieldType(SortField.Type type) {
-            this.sortFieldType = type;
-            this.usePointBasedOptimization = false; // Disable optimization if we set this
         }
     }
 
@@ -119,7 +111,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
-        boolean reverse
+        boolean reverse,
+        boolean wideSortTypeRequested
     ) {
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
 
@@ -141,11 +134,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
-        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
+        SortField.Type sortFieldType = wideSortTypeRequested ? SortField.Type.LONG : getNumericType().sortFieldType;
+        SortField sortField = new SortedNumericSortField(getFieldName(), sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        if(getNumericType().usePointBasedOptimization == false) {
-            sortField.setOptimizeSortWithPoints(false);
-        }
         return sortField;
     }
 
@@ -163,12 +154,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField indexSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        NumericType targetNumericType = getNumericType();
         switch(getNumericType().sortFieldType) {
             case INT:
-                getNumericType().setSortFieldType(NumericType.LONG.sortFieldType);
+                targetNumericType = NumericType.LONG;
                 break;
         }
-        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(targetNumericType, missingValue, sortMode, nested, reverse, true);
     }
 
     /**
@@ -231,9 +223,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             case LONG:
                 return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
-                if(getNumericType().sortFieldType == SortField.Type.LONG) {
-                    return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
-                }
                 assert !targetNumericType.isFloatingPoint();
                 return new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
