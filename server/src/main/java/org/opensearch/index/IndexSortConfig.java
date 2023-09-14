@@ -244,6 +244,7 @@ public final class IndexSortConfig {
     private void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
+            System.out.println(sortField);
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }
