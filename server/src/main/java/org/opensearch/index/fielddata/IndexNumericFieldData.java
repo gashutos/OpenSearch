@@ -111,8 +111,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
-        boolean reverse,
-        boolean wideSortTypeRequested
+        boolean reverse
     ) {
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
 
@@ -134,8 +133,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
-        SortField.Type sortFieldType = wideSortTypeRequested ? SortField.Type.LONG : getNumericType().sortFieldType;
-        SortField sortField = new SortedNumericSortField(getFieldName(), sortFieldType, reverse, selectorType);
+        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
         return sortField;
     }
@@ -149,18 +147,23 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(getNumericType(), missingValue, sortMode, nested, reverse, false);
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
     @Override
     public final SortField indexSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        NumericType targetNumericType = getNumericType();
-        switch(getNumericType().sortFieldType) {
-            case INT:
-                targetNumericType = NumericType.LONG;
-                break;
+        if(getNumericType().sortFieldType == SortField.Type.INT) {
+            XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
+            SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
+                ? SortedNumericSelector.Type.MAX
+                : SortedNumericSelector.Type.MIN;
+            SortField sortField = new SortedNumericSortField(getFieldName(), SortField.Type.LONG, reverse, selectorType);
+            sortField.setMissingValue(source.missingObject(missingValue, reverse));
+            return sortField;
+        } else {
+
         }
-        return sortField(targetNumericType, missingValue, sortMode, nested, reverse, true);
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
     /**
